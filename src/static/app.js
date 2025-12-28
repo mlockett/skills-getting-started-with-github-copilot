@@ -7,7 +7,8 @@ document.addEventListener("DOMContentLoaded", () => {
   // Function to fetch activities from API
   async function fetchActivities() {
     try {
-      const response = await fetch("/activities");
+      // Add cache-busting query param to always get fresh data
+      const response = await fetch(`/activities?cb=${Date.now()}`);
       const activities = await response.json();
 
       // Clear loading message and reset select to avoid duplicate options
@@ -35,7 +36,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 .join("")
                 .slice(0, 2)
                 .toUpperCase();
-              return `<li><span class="participant-badge">${initials}</span><span class="participant-name">${display}</span></li>`;
+              // Add a delete button with data attributes
+              return `<li><span class="participant-badge">${initials}</span><span class="participant-name">${display}</span><button class="delete-participant-btn" title="Unregister participant" data-activity="${encodeURIComponent(name)}" data-email="${encodeURIComponent(p)}" aria-label="Delete participant">🗑️</button></li>`;
             })
             .join("");
           participantsHtml = `<ul class="participants-list">${items}</ul>`;
@@ -59,6 +61,32 @@ document.addEventListener("DOMContentLoaded", () => {
         option.value = name;
         option.textContent = name;
         activitySelect.appendChild(option);
+      });
+
+      // Add event listeners for delete buttons
+      document.querySelectorAll('.delete-participant-btn').forEach((btn) => {
+        btn.addEventListener('click', async (e) => {
+          const activity = btn.getAttribute('data-activity');
+          const email = btn.getAttribute('data-email');
+          try {
+            const response = await fetch(`/activities/${activity}/unregister?email=${email}`, { method: 'POST' });
+            const result = await response.json();
+            if (response.ok) {
+              messageDiv.textContent = result.message || 'Participant unregistered.';
+              messageDiv.className = 'success';
+              await fetchActivities();
+            } else {
+              messageDiv.textContent = result.detail || 'Failed to unregister participant.';
+              messageDiv.className = 'error';
+            }
+            messageDiv.classList.remove('hidden');
+            setTimeout(() => messageDiv.classList.add('hidden'), 5000);
+          } catch (error) {
+            messageDiv.textContent = 'Error unregistering participant.';
+            messageDiv.className = 'error';
+            messageDiv.classList.remove('hidden');
+          }
+        });
       });
     } catch (error) {
       activitiesList.innerHTML = "<p>Failed to load activities. Please try again later.</p>";
